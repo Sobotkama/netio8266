@@ -17,10 +17,10 @@ const char* mqtt_server = "mqtt.cgcs.cz";
 
 
 const String netioId = "netio-test";
-const int zasuvka = 0;
+const int zasuvka = 1;
 
 const String inTopic = "devices/"+netioId+"/messages/events/";
-
+const String outTopic = "devices/"+netioId+"/messages/devicebound/";
 WiFiClient espClient;
 PubSubClient client(espClient);
 long lastMsg = 0;
@@ -96,7 +96,7 @@ void reconnect() {
 }
 
 bool led;
-
+int targetState = 0;
 // constants won't change. Used here to set a pin number:
 const int ledPin =  14;// the number of the LED pin
 const int ledPin2 =  12;
@@ -137,16 +137,19 @@ void loop() {
   client.loop();
 
   if (Serial2.available()) {
-    payload = Serial2.read() - '0';
+    targetState = Serial2.read() - '0';
     Serial.println(payload);
     ledState = payload;
-
-    String payload = "{\"micros\":";
-    payload += micros();
-    payload += "}";
+    String payload = "{\"Operation\":\"SetOutputs\",\"Outputs\":[{\"ID\":";
+    payload += String(zasuvka);
+    payload += ",\"Action\":";
+    payload += targetState;
+    payload += "}]}";
     Serial.print("Publish message: ");
+    Serial.print(outTopic);
+    Serial.print("; ");
     Serial.println(payload);
-    client.publish("outTopic", (char*) payload.c_str());
+    client.publish((char*)outTopic.c_str(), (char*) payload.c_str());
 
   }
   digitalWrite(ledPin, !ledState);
