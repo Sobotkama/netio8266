@@ -1,32 +1,41 @@
-/*
-
-*/
-
+#include <ArduinoJson.h>
 #include <ESP8266WiFi.h>
 #include <PubSubClient.h>
 #include <SoftwareSerial.h>
 
+/*
+  in PubSubClient.h set
+  #define MQTT_MAX_PACKET_SIZE xxx
+  to
+  #define MQTT_MAX_PACKET_SIZE 1024
+
+  Otherwise you never receive some messages
+*/
 #define RX    5   // *** D1, Pin 2
 #define TX    4   // *** D2, Pin 1 I hope
+
+const int ledPin =  14;// the number of the LED pin
+const int ledPin2 =  12;
+
 
 SoftwareSerial Serial2(RX, TX);
 
 const char* ssid = "41";
 const char* password = "41414141";
 const char* mqtt_server = "mqtt.cgcs.cz";
-
+const size_t capacity = JSON_ARRAY_SIZE(4) + JSON_OBJECT_SIZE(2) + 4 * JSON_OBJECT_SIZE(5) + JSON_OBJECT_SIZE(10) + 350; //from https://arduinojson.org/v6/assistant/
+int plugs[4] = {0, 0, 0, 0};
 
 const String netioId = "netio-test";
-const int zasuvka = 1;
-
+int zasuvka = 0;
+int state = plugs[zasuvka];
 const String inTopic = "devices/" + netioId + "/messages/events/";
 const String outTopic = "devices/" + netioId + "/messages/devicebound/";
 WiFiClient espClient;
 PubSubClient client(espClient);
-long lastMsg = 0;
-char msg[50];
-int value = 0;
-
+int changeLED = 0;
+int ledMode = 0;
+unsigned long int modeTimerStart = 0;
 
 void setup_wifi() {
 
@@ -51,14 +60,36 @@ void setup_wifi() {
   Serial.println(WiFi.localIP());
 }
 
+void updateLed() {
+  int state = plugs[zasuvka];
+  digitalWrite(ledPin, state);
+  digitalWrite(ledPin2, !state);
+}
+
 void callback(char* topic, byte* payload, unsigned int length) {
-  Serial.print("Message arrived [");
-  Serial.print(topic);
-  Serial.print("] ");
-  for (int i = 0; i < length; i++) {
-    Serial.print((char)payload[i]);
-  }
+  Serial.print("Message arrived");
+  //Serial.print(topic);
+  //Serial.print("] ");
+  //for (int i = 0; i < length; i++) {
+  //  Serial.print((char)payload[i]);
+  //}
   Serial.println();
+  DynamicJsonDocument doc(capacity);
+  deserializeJson(doc, payload, length);
+  JsonArray Outputs = doc["Outputs"];
+  Serial.print("outputs length: ");
+  int len = Outputs.size();
+  Serial.println(len);
+  for (int i = 0; i < len; i++) {
+    JsonObject output = Outputs[i];
+    int OutputID = output["ID"];
+    int OutputState = output["State"];
+    plugs[OutputID - 1] = OutputState;
+    Serial.print("Output ID:");
+    Serial.print(OutputID);
+    Serial.print("; State:");
+    Serial.println(OutputState);
+  }
 
   // Switch on the LED if an 1 was received as first character
   if ((char)payload[0] == '1') {
@@ -82,7 +113,7 @@ void reconnect() {
     if (client.connect(clientId.c_str())) {
       Serial.println("connected");
       // Once connected, publish an announcement...
-      client.publish("outTopic", "hello world");
+      client.publish((char*)outTopic.c_str(), "{\"Operation\":\"GetDescription\"}");
       // ... and resubscribe
       client.subscribe((char*)inTopic.c_str());
     } else {
@@ -98,8 +129,7 @@ void reconnect() {
 bool led;
 int targetState = 0;
 // constants won't change. Used here to set a pin number:
-const int ledPin =  14;// the number of the LED pin
-const int ledPin2 =  12;
+
 // Variables will change:
 int ledState = LOW;             // ledState used to set the LED
 
@@ -135,23 +165,55 @@ void loop() {
     reconnect();
   }
   client.loop();
-
+  state = plugs[zasuvka];
   if (Serial2.available()) {
-    targetState = Serial2.read() - '0';
-    Serial.println(payload);
-    ledState = payload;
-    String payload = "{\"Operation\":\"SetOutputs\",\"Outputs\":[{\"ID\":";
-    payload += String(zasuvka);
-    payload += ",\"Action\":";
-    payload += targetState;
-    payload += "}]}";
-    Serial.print("Publish message: ");
-    Serial.print(outTopic);
-    Serial.print("; ");
-    Serial.println(payload);
-    client.publish((char*)outTopic.c_str(), (char*) payload.c_str());
-
+    int input = Serial2.read() - '0';
+    Serial.println(input);
+    if (input == 0) {
+      if (ledMode == 1) {
+        changeLED = 1;
+      }
+      ledMode = 1;
+      modeTimerStart = millis();
+    } else {
+      targetState = !state;
+      String payload = "{\"Operation\":\"SetOutputs\",\"Outputs\":[{\"ID\":";
+      payload += String(zasuvka + 1);
+      payload += ",\"Action\":";
+      payload += targetState;
+      payload += "}]}";
+      Serial.print("Publish message: ");
+      Serial.print(outTopic);
+      Serial.print("; ");
+      Serial.println(payload);
+      client.publish((char*)outTopic.c_str(), (char*) payload.c_str());
+    }
   }
-  digitalWrite(ledPin, !ledState);
-  digitalWrite(ledPin2, ledState);
+  if (ledMode == 0) { //default mode, leds show state of selected outlet
+
+    digitalWrite(ledPin, state);
+    digitalWrite(ledPin2, !state);
+  }
+  else if (ledMode == 1) {
+    if (millis() - modeTimerStart > 1500) { //only show the plug change "menu" for 1,5 seconds
+      ledMode = 0;
+      changeLED = 0;
+      digitalWrite(ledPin, LOW);
+      digitalWrite(ledPin2, LOW);
+    }
+    if (changeLED == 1) {
+      zasuvka++;
+      changeLED = 0;
+      if (zasuvka == 4) {
+        zasuvka = 0;
+      }
+      Serial.print("changed zasuvka to ");
+      Serial.println(zasuvka);
+    }
+    digitalWrite(ledPin, bitRead(zasuvka, 1));
+    digitalWrite(ledPin2, bitRead(zasuvka, 0));
+  }
+
+  //digitalWrite(ledPin, !ledState);
+  //digitalWrite(ledPin2, ledState);
 }
