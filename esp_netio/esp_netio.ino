@@ -11,8 +11,8 @@
 
   Otherwise you never receive some messages
 */
-#define RX    5   // *** D1, Pin 2
-#define TX    4   // *** D2, Pin 1 I hope
+#define RX    5
+#define TX    4
 
 const int ledPin =  14;// the number of the LED pin
 const int ledPin2 =  12;
@@ -52,7 +52,7 @@ void setup_wifi() {
     Serial.print(".");
   }
 
-  randomSeed(micros());
+  randomSeed(micros()); //lol
 
   Serial.println("");
   Serial.println("WiFi connected");
@@ -60,26 +60,12 @@ void setup_wifi() {
   Serial.println(WiFi.localIP());
 }
 
-void updateLed() {
-  int state = plugs[zasuvka];
-  digitalWrite(ledPin, state);
-  digitalWrite(ledPin2, !state);
-}
-
 void callback(char* topic, byte* payload, unsigned int length) {
-  Serial.print("Message arrived");
-  //Serial.print(topic);
-  //Serial.print("] ");
-  //for (int i = 0; i < length; i++) {
-  //  Serial.print((char)payload[i]);
-  //}
-  Serial.println();
+  Serial.println("Message arrived:");
   DynamicJsonDocument doc(capacity);
   deserializeJson(doc, payload, length);
   JsonArray Outputs = doc["Outputs"];
-  Serial.print("outputs length: ");
   int len = Outputs.size();
-  Serial.println(len);
   for (int i = 0; i < len; i++) {
     JsonObject output = Outputs[i];
     int OutputID = output["ID"];
@@ -89,15 +75,6 @@ void callback(char* topic, byte* payload, unsigned int length) {
     Serial.print(OutputID);
     Serial.print("; State:");
     Serial.println(OutputState);
-  }
-
-  // Switch on the LED if an 1 was received as first character
-  if ((char)payload[0] == '1') {
-    digitalWrite(BUILTIN_LED, LOW);   // Turn the LED on (Note that LOW is the voltage level
-    // but actually the LED is on; this is because
-    // it is active low on the ESP-01)
-  } else {
-    digitalWrite(BUILTIN_LED, HIGH);  // Turn the LED off by making the voltage HIGH
   }
 
 }
@@ -112,7 +89,7 @@ void reconnect() {
     // Attempt to connect
     if (client.connect(clientId.c_str())) {
       Serial.println("connected");
-      // Once connected, publish an announcement...
+      // Once connected, request netio state...
       client.publish((char*)outTopic.c_str(), "{\"Operation\":\"GetDescription\"}");
       // ... and resubscribe
       client.subscribe((char*)inTopic.c_str());
@@ -126,19 +103,7 @@ void reconnect() {
   }
 }
 
-bool led;
 int targetState = 0;
-// constants won't change. Used here to set a pin number:
-
-// Variables will change:
-int ledState = LOW;             // ledState used to set the LED
-
-// Generally, you should use "unsigned long" for variables that hold time
-// The value will quickly become too large for an int to store
-unsigned long previousMillis = 0;        // will store last time LED was updated
-int payload = 0;
-// constants won't change:
-const long interval = 1000;           // interval at which to blink (milliseconds)
 
 void setup() {
   // set the digital pin as output:
@@ -152,15 +117,7 @@ void setup() {
   client.setCallback(callback);
 }
 
-void sendData(String id, String num) {
-  String json = "text" + num + "othertext";
-  String topic = "device/" + id + "/messages/devicebound/";
-  //mqttClient.send(topic, json);
-}
-
 void loop() {
-  // here is where you'd put code that needs to be running all the time.
-
   if (!client.connected()) {
     reconnect();
   }
@@ -213,7 +170,4 @@ void loop() {
     digitalWrite(ledPin, bitRead(zasuvka, 1));
     digitalWrite(ledPin2, bitRead(zasuvka, 0));
   }
-
-  //digitalWrite(ledPin, !ledState);
-  //digitalWrite(ledPin2, ledState);
 }
