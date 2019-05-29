@@ -19,8 +19,8 @@ const char* mqtt_server = "mqtt.cgcs.cz";
 const String netioId = "netio-test";
 const int zasuvka = 1;
 
-const String inTopic = "devices/"+netioId+"/messages/events/";
-const String outTopic = "devices/"+netioId+"/messages/devicebound/";
+const String inTopic = "devices/" + netioId + "/messages/events/";
+const String outTopic = "devices/" + netioId + "/messages/devicebound/";
 WiFiClient espClient;
 PubSubClient client(espClient);
 long lastMsg = 0;
@@ -84,7 +84,7 @@ void reconnect() {
       // Once connected, publish an announcement...
       client.publish("outTopic", "hello world");
       // ... and resubscribe
-      client.subscribe("/server/date");
+      client.subscribe((char*)inTopic.c_str());
     } else {
       Serial.print("failed, rc=");
       Serial.print(client.state());
