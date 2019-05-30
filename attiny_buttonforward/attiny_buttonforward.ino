@@ -5,7 +5,7 @@
 
 #define butt1 4     // the number of the pushbutton pin
 #define butt2 3     // the number of the LED pin
-
+#define transistor 5
 bool butt1state;
 bool butt2state;
 bool butt1pressed;
@@ -17,6 +17,8 @@ void setup() {
   // initialize the pushbutton pin as an input:
   pinMode(butt1, INPUT);
   pinMode(butt2, INPUT);
+  pinMode(transistor, OUTPUT);
+  digitalWrite(transistor, HIGH);
   Serial.begin(9600);
 }
 
